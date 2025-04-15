@@ -1,1 +1,0 @@
-# aks-cicd-app
