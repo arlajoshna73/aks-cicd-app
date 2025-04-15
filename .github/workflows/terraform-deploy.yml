@@ -1,0 +1,52 @@
+name: Terraform + Build + Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.6.6
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Plan
+      run: terraform plan -var-file="terraform.tfvars"
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var-file="terraform.tfvars"
+
+    - name: Build Docker image
+      run: |
+        docker build -t myapp:${{ github.sha }} ./app
+        docker tag myapp:${{ github.sha }} ${{ secrets.ACR_NAME }}.azurecr.io/myapp:${{ github.sha }}
+
+    - name: Azure ACR Login
+      uses: azure/docker-login@v1
+      with:
+        login-server: azcr01.azurecr.io
+        username: azcr01
+        password: ${{ secrets.ARM_CLIENT_SECRET }}
+
+    - name: Push image to ACR
+      run: |
+        docker push ${{ secrets.ACR_NAME }}.azurecr.io/myapp:${{ github.sha }}
